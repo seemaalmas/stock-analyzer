@@ -1,0 +1,6 @@
+{
+    "python.analysis.extraPaths": [
+        "./fundamentals"
+    ],
+    "snyk.advanced.autoSelectOrganization": true
+}

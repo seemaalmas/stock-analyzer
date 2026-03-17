@@ -1,0 +1,60 @@
+🔁 NIGHTLY PIPELINE (EXACT ORDER)
+🔹 STEP 1 — DOWNLOAD RAW DATA
+python -m scripts.run_bhavcopy
+python -m fundamentals.ingestion.index_price_ingest
+python -m fundamentals.ingestion.vix_ingest
+python -m fundamentals.ingestion.nse_announcements
+
+
+📌 Output tables:
+
+price_daily
+
+index_daily
+
+vix_daily
+
+news_headlines
+
+🔹 STEP 2 — TECHNICAL COMPUTATIONS
+python -m technicals.structure.batch_runner
+python -m technicals.indicators.batch_runner
+
+
+📌 Output tables:
+
+price_structure
+
+technical_state
+
+🔹 STEP 3 — MARKET REGIME
+python -m market.batch_runner
+
+
+📌 Output table:
+
+market_regime
+
+🔹 STEP 4 — STRATEGY SIGNALS
+python -m strategies.weekly.batch_runner
+
+
+📌 Output:
+
+weekly_trade_signals
+
+🔹 STEP 5 — SCORING
+python -m scoring.batch_runner
+
+
+📌 Output:
+
+trade_scores
+
+🔹 STEP 6 — RISK ENGINE
+python -m risk.batch_runner
+
+
+📌 Output:
+
+approved_trades

@@ -1,0 +1,299 @@
+Clean all tables to add new data from Yahoo
+
+TRUNCATE TABLE price_daily;
+TRUNCATE TABLE index_daily;
+TRUNCATE TABLE vix_daily;
+
+TRUNCATE TABLE technical_state;
+TRUNCATE TABLE price_structure;
+TRUNCATE TABLE market_regime;
+
+TRUNCATE TABLE symbols_master;
+
+
+Perfect. Let’s **reset the noise and give you a clean, end-to-end, copy-paste-safe guide starting exactly from STEP 3**.
+
+I will **only cover what you asked**:
+
+* No Bhavcopy yet
+* No strategy logic
+* Only **STEP 3 = clean historical backfill using Yahoo**
+* With **exact SQL + exact scripts + exact order**
+
+If you follow this **line by line**, you will end STEP-3 with:
+
+* Correct tables
+* Correct data
+* Ready for Bhavcopy & Phase-4
+
+No sugarcoating. No assumptions.
+
+---
+
+# ✅ STEP 3 — CLEAN HISTORICAL DATA FOUNDATION (YAHOO BACKFILL)
+
+## 🎯 GOAL OF STEP 3 (VERY IMPORTANT)
+
+By the end of STEP 3, you must have:
+
+* ✅ All index stocks (NIFTY 50, BankNifty constituents, etc.)
+* ✅ 2–3 years of **daily OHLCV data**
+* ✅ Data stored in **one single table: `price_daily`**
+* ✅ Index data in `index_daily`
+* ✅ VIX data in `vix_daily`
+
+This is **ONLY for bootstrapping history**.
+Yahoo is used **once**, then retired.
+
+---
+
+# 🔵 STEP 3.0 — VERIFY & FIX SCHEMA (MANDATORY)
+
+Run **all of these SQL commands in order**.
+
+---
+
+## 3.0.1 Fix `symbols_master` schema
+
+```sql
+ALTER TABLE symbols_master
+ADD COLUMN IF NOT EXISTS index_name TEXT,
+ADD COLUMN IF NOT EXISTS yahoo_symbol TEXT,
+ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE;
+```
+
+---
+
+## 3.0.2 Fix `price_daily` schema
+
+```sql
+ALTER TABLE price_daily
+ADD COLUMN IF NOT EXISTS delivery_qty BIGINT,
+ADD COLUMN IF NOT EXISTS delivery_pct NUMERIC,
+ADD COLUMN IF NOT EXISTS source TEXT;
+```
+
+---
+
+## 3.0.3 Verify schemas
+
+```sql
+SELECT column_name
+FROM information_schema.columns
+WHERE table_name = 'symbols_master';
+
+SELECT column_name
+FROM information_schema.columns
+WHERE table_name = 'price_daily';
+```
+
+If these columns exist → proceed.
+
+---
+
+# 🔵 STEP 3.1 — CLEAN ALL OLD SAMPLE DATA (RESET)
+
+This avoids **mixed / corrupt data**.
+
+```sql
+TRUNCATE TABLE price_daily;
+TRUNCATE TABLE index_daily;
+TRUNCATE TABLE vix_daily;
+
+TRUNCATE TABLE technical_state;
+TRUNCATE TABLE price_structure;
+TRUNCATE TABLE market_regime;
+
+TRUNCATE TABLE symbols_master;
+```
+
+---
+
+# 🔵 STEP 3.2 — INSERT SYMBOL UNIVERSE (CRITICAL)
+
+We **DO NOT download “all NSE stocks”**.
+We start with **indices**.
+
+---
+
+## 3.2.1 Insert INDEX symbols
+
+```sql
+INSERT INTO symbols_master (symbol, exchange, index_name, yahoo_symbol)
+VALUES
+('NIFTY', 'NSE', 'INDEX', '^NSEI'),
+('BANKNIFTY', 'NSE', 'INDEX', '^NSEBANK'),
+('INDIAVIX', 'NSE', 'INDEX', '^INDIAVIX');
+```
+
+---
+
+## 3.2.2 Insert NIFTY 50 stocks (example)
+
+You must insert **all NIFTY 50 stocks** here.
+Below is the **pattern** (paste full list).
+
+```sql
+INSERT INTO symbols_master (symbol, exchange, index_name, yahoo_symbol)
+VALUES
+('RELIANCE','NSE','NIFTY50','RELIANCE.NS'),
+('TCS','NSE','NIFTY50','TCS.NS'),
+('INFY','NSE','NIFTY50','INFY.NS'),
+('HDFCBANK','NSE','NIFTY50','HDFCBANK.NS'),
+('ICICIBANK','NSE','NIFTY50','ICICIBANK.NS');
+```
+
+---
+
+## 3.2.3 Verify symbols
+
+```sql
+SELECT index_name, COUNT(*)
+FROM symbols_master
+GROUP BY index_name;
+```
+
+Expected:
+
+```
+INDEX    → 3
+NIFTY50  → 50
+```
+
+---
+
+# 🔵 STEP 3.3 — HISTORICAL BACKFILL (STOCKS)
+
+### 📁 Script: `fundamentals/ingestion/yahoo_stock_backfill.py`
+
+
+### ▶ Run:
+
+```bash
+python -m fundamentals.ingestion.yahoo_stock_backfill
+```
+
+---
+
+# 🔵 STEP 3.4 — HISTORICAL BACKFILL (INDICES)
+
+### 📁 Script: `fundamentals/ingestion/yahoo_index_backfill.py`
+
+```
+
+### ▶ Run:
+
+```bash
+python -m fundamentals.ingestion.yahoo_index_backfill
+```
+
+---
+
+# 🔵 STEP 3.5 — HISTORICAL BACKFILL (VIX)
+
+### 📁 Script: `fundamentals/ingestion/yahoo_vix_backfill.py`
+
+```
+
+### ▶ Run:
+
+```bash
+python -m fundamentals.ingestion.yahoo_vix_backfill
+```
+
+---
+
+# 🔵 STEP 3.6 — VERIFY EVERYTHING (NON-NEGOTIABLE)
+
+Run **all** of these SQL checks:
+
+```sql
+SELECT COUNT(*) FROM symbols_master;
+
+SELECT symbol, COUNT(*)
+FROM price_daily
+GROUP BY symbol
+ORDER BY COUNT(*) DESC;
+
+SELECT index_name, COUNT(*)
+FROM index_daily
+GROUP BY index_name;
+
+SELECT COUNT(*) FROM vix_daily;
+```
+
+Expected:
+
+* ~600–800 rows per stock
+* ~600–800 rows per index
+* ~600–800 rows for VIX
+
+---
+
+# 🔵 STEP 3.7 — REBUILD DERIVED LAYERS
+
+Because you reset data, you MUST re-run:
+
+```bash
+python -m technicals.structure.batch_runner
+python -m technicals.indicators.batch_runner
+python -m market.batch_runner
+```
+
+If these run without error → **STEP 3 IS COMPLETE**.
+
+
+*************************************************************************************************************************
+🟢 SOLUTION 1 (RECOMMENDED): NSE “Market Data” API (NO ARCHIVES)
+
+NSE provides live JSON endpoints (same data as bhavcopy).
+
+This endpoint is much more reliable:
+
+https://www.nseindia.com/api/equity-stockIndices?index=NIFTY%2050
+
+
+And for ALL equities:
+
+https://www.nseindia.com/api/equity-master
+
+
+But more importantly:
+
+https://www.nseindia.com/api/equity-stockWatch?index=SECURITIES%20IN%20F%26O
+
+
+This gives you today’s full market data, including:
+
+OHLC
+
+Volume
+
+Delivery %
+
+Reality:
+
+Big desks use this
+
+Bhavcopy ZIP is treated as optional backup
+
+
+*****************************************************************************************************************************
+Summary:
+
+SELECT COUNT(*) FROM price_daily;
+SELECT COUNT(*) FROM index_daily;
+SELECT COUNT(*) FROM vix_daily;
+SELECT COUNT(*) FROM market_regime;
+
+
+*********************************************************************************************************************************
+🔁 FINAL DAILY PIPELINE (UPDATED STEP-3)
+price_ingest (NSE API)
+index_price_ingest
+vix_ingest
+market_breadth_ingest
+news_ingest   ← NEW
+technicals.structure.batch_runner
+technicals.indicators.batch_runner
+market.batch_runner

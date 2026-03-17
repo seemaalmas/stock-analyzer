@@ -1,0 +1,370 @@
+symbols_master  → defines WHAT to track
+price_daily    → defines WHAT happened
+index_daily    → defines MARKET direction
+vix_daily      → defines RISK
+
+*******************************************************
+Great question. This is **exactly** the right place to pause and understand *why* those commands exist, not just *how* to run them.
+I’ll answer in **two clear parts**, no fluff.
+
+---
+
+# PART 1 — WHY WE NEED THESE THREE COMMANDS (ABSOLUTELY CRITICAL)
+
+You asked:
+
+```bash
+python -m technicals.structure.batch_runner
+python -m technicals.indicators.batch_runner
+python -m market.batch_runner
+```
+
+### Short answer (truth):
+
+👉 **Because raw price data is useless until it is converted into tradable context.**
+
+These commands **do NOT download data**.
+They **transform already-downloaded data into intelligence**.
+
+---
+
+## 1️⃣ `technicals.structure.batch_runner`
+
+### What it reads
+
+* `price_daily`
+
+### What it writes
+
+* `price_structure`
+
+### What problem it solves
+
+Raw prices don’t tell you:
+
+* Is the stock trending?
+* Is it ranging?
+* Is it breaking down?
+
+This script answers:
+
+* **HH–HL / LH–LL / RANGE**
+* Support / resistance
+* Trend direction
+
+### Without this
+
+❌ You cannot say “weekly breakout”
+❌ You cannot say “monthly trend intact”
+
+📌 **Structure is the backbone of all strategies.**
+
+---
+
+## 2️⃣ `technicals.indicators.batch_runner`
+
+### What it reads
+
+* `price_daily`
+* `price_structure`
+
+### What it writes
+
+* `technical_state`
+
+### What problem it solves
+
+Structure alone is not enough.
+You need **confirmation**, not signals.
+
+This script computes:
+
+* EMA alignment (trend strength)
+* VWAP position (institutional acceptance)
+* RSI behavior (momentum health)
+
+### Without this
+
+❌ You’ll buy weak pullbacks
+❌ You’ll buy false breakouts
+
+📌 **Indicators don’t create trades — they FILTER bad ones.**
+
+---
+
+## 3️⃣ `market.batch_runner`
+
+### What it reads
+
+* `index_daily`
+* `vix_daily`
+* `technical_state`
+
+### What it writes
+
+* `market_regime`
+
+### What problem it solves
+
+Even the best stock fails in the wrong market.
+
+This script answers:
+
+* Is the market TRENDING?
+* Is it RANGE-bound?
+* Is volatility too high?
+* Should trading be blocked?
+
+### Without this
+
+❌ You trade aggressively in crashes
+❌ You overtrade in sideways markets
+
+📌 **Market regime is the master switch.**
+
+---
+
+## 🔥 IMPORTANT MENTAL MODEL (LOCK THIS)
+
+| Layer         | Question it answers    |
+| ------------- | ---------------------- |
+| `price_daily` | What happened?         |
+| Structure     | How is price behaving? |
+| Indicators    | Is behavior healthy?   |
+| Market regime | Should I trade at all? |
+
+These three commands **must run after any new data**
+(Yahoo backfill OR daily Bhavcopy).
+
+---
+
+# PART 2 — NSE BHAVCOPY CSV FORMAT (LINE BY LINE, REALITY)
+
+Now let’s do the Bhavcopy part properly.
+
+---
+
+## WHAT IS NSE EQUITY BHAVCOPY?
+
+It is a **daily official CSV** published by NSE after market close.
+
+Filename example:
+
+```
+cm09SEP2025bhav.csv
+```
+
+This file contains **ALL NSE stocks for that day**.
+
+---
+
+## SAMPLE REAL ROW (SIMPLIFIED)
+
+```
+SYMBOL,SERIES,OPEN,HIGH,LOW,CLOSE,LAST,PREVCLOSE,
+TOTTRDQTY,TOTTRDVAL,TIMESTAMP,DELIV_QTY,DELIV_PER
+```
+
+Example data row:
+
+```
+RELIANCE,EQ,2850,2895,2820,2880,2882,2835,
+12456789,35678900000,09-SEP-2025,6543210,52.56
+```
+
+---
+
+## COLUMN-BY-COLUMN EXPLANATION (ONLY WHAT MATTERS)
+
+### 1️⃣ `SYMBOL`
+
+```
+RELIANCE
+```
+
+* NSE stock code
+* Used to join with `symbols_master`
+
+❌ Ignore symbols not in your universe
+
+---
+
+### 2️⃣ `SERIES`
+
+```
+EQ
+```
+
+* Only **EQ** is tradable equity
+* Ignore BE, BL, SM, etc.
+
+📌 **Always filter `SERIES = 'EQ'`**
+
+---
+
+### 3️⃣ `OPEN`
+
+```
+2850
+```
+
+* Day’s open price
+* Used for gap analysis (BTST later)
+
+---
+
+### 4️⃣ `HIGH`
+
+```
+2895
+```
+
+* Day’s high
+* Used in breakout logic
+
+---
+
+### 5️⃣ `LOW`
+
+```
+2820
+```
+
+* Day’s low
+* Used for stop-loss, structure
+
+---
+
+### 6️⃣ `CLOSE`
+
+```
+2880
+```
+
+* Most important price
+* Used everywhere (structure, indicators, strategies)
+
+---
+
+### 7️⃣ `TOTTRDQTY`
+
+```
+12456789
+```
+
+* Total traded volume
+* Used for:
+
+  * Volume expansion
+  * Breakout quality
+
+---
+
+### 8️⃣ `TIMESTAMP`
+
+```
+09-SEP-2025
+```
+
+* Trading date
+* Converted to `YYYY-MM-DD`
+* Becomes `trade_date`
+
+---
+
+### 9️⃣ `DELIV_QTY`
+
+```
+6543210
+```
+
+* Quantity delivered (not intraday)
+* Shows **real buying/selling**
+
+---
+
+### 🔟 `DELIV_PER`
+
+```
+52.56
+```
+
+* Delivery percentage
+* **One of your biggest edges**
+
+Used for:
+
+* Weekly delivery stocks
+* Institutional accumulation
+* Fake breakout filtering
+
+---
+
+## WHAT YOU MUST IGNORE (IMPORTANT)
+
+Ignore these columns:
+
+* `LAST`
+* `PREVCLOSE`
+* `TOTTRDVAL`
+* Any unused metadata
+
+They add **noise**, not edge.
+
+---
+
+## WHERE BHAVCOPY DATA GOES (NO CONFUSION)
+
+👉 **ONLY ONE TABLE**
+
+### `price_daily`
+
+Mapping:
+
+| Bhavcopy  | price_daily  |
+| --------- | ------------ |
+| SYMBOL    | symbol       |
+| TIMESTAMP | trade_date   |
+| OPEN      | open         |
+| HIGH      | high         |
+| LOW       | low          |
+| CLOSE     | close        |
+| TOTTRDQTY | volume       |
+| DELIV_QTY | delivery_qty |
+| DELIV_PER | delivery_pct |
+| 'NSE'     | source       |
+
+---
+
+## WHY BHAVCOPY IS SUPERIOR TO YAHOO (REALITY)
+
+| Feature              | Yahoo | Bhavcopy |
+| -------------------- | ----- | -------- |
+| Official             | ❌     | ✅        |
+| Delivery %           | ❌     | ✅        |
+| Volume accuracy      | ⚠️    | ✅        |
+| Intraday vs delivery | ❌     | ✅        |
+| Long-term stability  | ❌     | ✅        |
+
+Yahoo = **bootstrap only**
+Bhavcopy = **production truth**
+
+---
+
+# FINAL CONNECTION (IMPORTANT)
+
+### Daily production flow (every trading day):
+
+1️⃣ Download Bhavcopy
+2️⃣ Insert into `price_daily`
+3️⃣ Run:
+
+```bash
+python -m technicals.structure.batch_runner
+python -m technicals.indicators.batch_runner
+python -m market.batch_runner
+```
+
+4️⃣ Then (Phase-4) find weekly/monthly stocks
+
+
