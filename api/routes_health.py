@@ -1,4 +1,5 @@
 """Health-check routes."""
+
 from __future__ import annotations
 
 from fastapi import APIRouter
@@ -15,6 +16,7 @@ def health():
 def health_db():
     try:
         from database.engine import engine
+
         with engine.connect() as conn:
             conn.execute(__import__("sqlalchemy").text("SELECT 1"))
         return {"status": "ok", "db": "up"}
