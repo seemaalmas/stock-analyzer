@@ -1,5 +1,6 @@
 import pandas as pd
 import pytest
+
 from spcore.validation import require_columns
 
 

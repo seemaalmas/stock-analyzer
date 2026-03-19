@@ -5,7 +5,7 @@ from datetime import datetime
 import pandas as pd
 
 from spcore.models import ScoreResult
-from spcore.validation import require_columns, REQUIRED_OHLCV
+from spcore.validation import REQUIRED_OHLCV, require_columns
 
 
 def score_ohlcv(df: pd.DataFrame) -> ScoreResult:
