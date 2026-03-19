@@ -66,6 +66,86 @@ This project uses Supabase-hosted PostgreSQL. Schema changes follow this process
 
 > Future improvement: adopt a migration tool (e.g., Alembic) for automated, versioned migrations.
 
+## Docker & Release
+
+### Build and run locally
+
+```bash
+# Build the image
+docker build -t stock-analyzer:dev .
+
+# Run (Streamlit on port 8080)
+docker run -p 8080:8080 stock-analyzer:dev
+
+# With database env vars
+docker run -p 8080:8080 \
+  -e user=postgres.abc -e password=secret \
+  -e host=db.example.com -e port=6543 -e dbname=postgres \
+  stock-analyzer:dev
+
+# Quick health check
+curl -I http://localhost:8080
+```
+
+**Expected output** from `curl -I`:
+
+```
+HTTP/1.1 200 OK
+```
+
+### Automated smoke test
+
+```bash
+./scripts/smoke_local.sh
+```
+
+This builds the image, starts a container, waits for Streamlit to be ready,
+curls the homepage, then tears down the container automatically.
+
+**Windows alternative** (PowerShell):
+
+```powershell
+docker build -t stock-analyzer:dev .
+docker run -d --name sa-test -p 8080:8080 stock-analyzer:dev
+Start-Sleep 15
+Invoke-WebRequest http://localhost:8080 -UseBasicParsing | Select-Object StatusCode
+docker rm -f sa-test
+```
+
+### Creating a release
+
+Tag a commit and push to trigger the release workflow:
+
+```bash
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+This builds and pushes to GHCR:
+- `ghcr.io/seemaalmas/stock-analyzer:0.1.0`
+- `ghcr.io/seemaalmas/stock-analyzer:latest`
+
+### Pull and run the GHCR image
+
+```bash
+docker pull ghcr.io/seemaalmas/stock-analyzer:latest
+docker run -p 8080:8080 ghcr.io/seemaalmas/stock-analyzer:latest
+```
+
+> **Note on GHCR visibility:** After the first publish, the package defaults
+> to *private*. Go to the package settings on GitHub and set visibility to
+> *public* if you want unauthenticated pulls.
+
+### Troubleshooting
+
+| Problem | Fix |
+|---------|-----|
+| `port already in use` | Stop the process using port 8080: `lsof -ti:8080 \| xargs kill` or choose another port: `-p 9090:8080` |
+| `ModuleNotFoundError` | Ensure `requirements.txt` lists the missing module; rebuild the image |
+| Streamlit not reachable | Check container logs: `docker logs <container>`; verify `--server.address=0.0.0.0` is set |
+| `docker: permission denied` | Add your user to the docker group: `sudo usermod -aG docker $USER` then re-login |
+| GHCR push fails (403) | Ensure the workflow has `packages: write` permission and the package visibility is set correctly |
+
 ## How to Run
 
 ```bash
