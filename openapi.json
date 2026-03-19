@@ -1,0 +1,18 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "stock-analyzer (no REST API yet)",
+    "description": "This project is currently a Streamlit dashboard (main.py) with no REST/HTTP API. SQLAlchemy is used for DB access in database/ modules. An API layer (FastAPI) will need to be added to expose signals/regime endpoints.",
+    "version": "0.0.0"
+  },
+  "paths": {},
+  "components": {
+    "schemas": {}
+  },
+  "x-notes": {
+    "framework": "streamlit",
+    "entrypoint": "streamlit run main.py",
+    "db_layer": "sqlalchemy (database/connection.py, database/engine.py)",
+    "status": "No OpenAPI spec available - project has no REST API yet. This placeholder was generated as a contract starting point for Prompt C."
+  }
+}
